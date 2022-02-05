@@ -10,16 +10,15 @@ pub struct State {
     client_accounts: HashMap<ClientId, ClientAccount>,
     // in the case of disputes, we need to find a transaction by ID. Therefore, we want to
     // prioritize quick lookups and identifications of transactions. We know transaction ids are
-    // unique, so we can use them as the index in a vector for quick lookups and relatively quick
-    // pushes.
+    // unique, so we can use them as the index in a hash map for quick lookups and relatively quick
+    // insertions. We know the keys are u32 values, so we can use a more optimal hashing algorithm.
+    // In this case, I chose FNV which is good for small hashes.
     //
     // I don't know how often disputes/chargebacks/resolutions occur, but I am assuming it is
     // at least an order of magnitude less frequent than pushing processed deposits/withdrawals.
-    // Therefore, of the standard collections Rust offers, I'm using a vector for maximal speed
+    // Therefore, of the standard collections Rust offers, I'm using a hashmap for speed
     // when processing a deposit or withdrawal transaction, but trying not to sacrifice dispute
-    // speed. A bunch of extremely random and disparate transaction ids would indeed slow this
-    // down, but given the data, that seems unlikely. If that is the case, then it would be better
-    // to use a different data structure.
+    // speed. Indeed this will use more memory due to vacant slots than say, a vector.
     //
     // Given more time, it would make sense to build a custom data structure for faster dispute
     // processing. One that takes advantage of the fact that transactions are _likely_ sequential
@@ -27,7 +26,7 @@ pub struct State {
     // mapping.
     //
     // In real life this would be a database with an index on the primary key, anyway.
-    processed_txns: Vec<Option<ProcessedTransaction>>,
+    processed_txns: HashMap<TxId, ProcessedTransaction>,
     active_disputes: Vec<TxId>,
     resolved_disputes: Vec<TxId>,
 }
@@ -73,14 +72,10 @@ impl State {
         client.total += amount;
     }
 
-    fn get_transaction_slot_mut(&mut self, id: TxId) -> Option<&mut Option<ProcessedTransaction>> {
-        self.processed_txns.get_mut(id as usize)
-    }
-
     pub fn dispute(&mut self, client_id: ClientId, tx: TxId) {
         // TODO: if they want a db, use sqlite here to find the amount in the tx db
-        match self.get_transaction_slot_mut(tx) {
-            Some(Some(ref mut processed_txn)) => {
+        match self.processed_txns.get_mut(&tx) {
+            Some(ref mut processed_txn) => {
                 // if the client ids don't match, the input is malformed.
                 if processed_txn.client_id() != client_id {
                     return;
@@ -107,19 +102,22 @@ impl State {
     }
 
     pub fn resolve(&mut self, client_id: ClientId, tx: TxId) {
-        let mut tx = self.get_transaction_slot_mut(tx);
-        if let Some(Some(ref mut tx)) = tx {
-            if tx.client_id() != client_id {
-                return;
-            }
-            tx.set_disputed(false);
+        let mutx = self.processed_txns.get_mut(&tx);
+        match self.processed_txns.get_mut(&tx) {
+            Some(ref mut tx) => {
+                if tx.client_id() != client_id {
+                    return;
+                }
+                tx.set_disputed(false);
 
-            let tx_amount = tx.amount();
+                let tx_amount = tx.amount();
 
-            if tx.is_deposit() {
-                let mut client = self.get_client(client_id);
-                client.held -= tx_amount;
+                if tx.is_deposit() {
+                    let mut client = self.get_client(client_id);
+                    client.held -= tx_amount;
+                }
             }
+            _ => (),
         }
 
         // TODO: if they want a db, use sqlite here to find the amount in the tx db
@@ -133,29 +131,12 @@ impl State {
         todo!("handle funds");
     }
 
-    /// Ensures there are enough available slots in this vector to hold this index.
-    fn ensure_tx_space(&mut self, tx_id: TxId) {
-        let tx_id = tx_id as usize;
-        if self.processed_txns.len() < tx_id {
-            self.processed_txns
-                .append(&mut vec![None; tx_id - self.processed_txns.len()]);
-        }
-    }
-
     fn insert_processed_deposit(&mut self, client: ClientId, amount: f64, tx_id: TxId) {
-        self.ensure_tx_space(tx_id);
-        let mut slot = self.get_transaction_slot_mut(tx_id);
-        match slot {
-            Some(ref mut x) => **x = Some(ProcessedTransaction::new_deposit(client, amount)),
-            None => (),
-        }
+        self.processed_txns
+            .insert(tx_id, ProcessedTransaction::new_deposit(client, amount));
     }
     fn insert_processed_withdrawal(&mut self, client: ClientId, amount: f64, tx_id: TxId) {
-        self.ensure_tx_space(tx_id);
-        let mut slot = self.get_transaction_slot_mut(tx_id);
-        match slot {
-            Some(ref mut x) => **x = Some(ProcessedTransaction::new_withdrawal(client, amount)),
-            None => (),
-        }
+        self.processed_txns
+            .insert(tx_id, ProcessedTransaction::new_withdrawal(client, amount));
     }
 }
