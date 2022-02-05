@@ -1,4 +1,5 @@
 use crate::{ClientId, Transaction, TxId};
+use fnv::FnvHashMap;
 use std::collections::HashMap;
 
 mod processed_transaction;
@@ -26,7 +27,7 @@ pub struct State {
     // mapping.
     //
     // In real life this would be a database with an index on the primary key, anyway.
-    processed_txns: HashMap<TxId, ProcessedTransaction>,
+    processed_txns: FnvHashMap<TxId, ProcessedTransaction>,
     active_disputes: Vec<TxId>,
     resolved_disputes: Vec<TxId>,
 }
@@ -34,8 +35,11 @@ pub struct State {
 /// Represents the state of a specific account for a given client.
 #[derive(Default, Debug)]
 struct ClientAccount {
+    /// total amount of funds currently held in dispute
     held: f64,
+    /// total amount of funds in this account
     total: f64,
+    /// whether or not the client account is frozen
     locked: bool,
 }
 
@@ -64,11 +68,21 @@ impl State {
 
     pub fn withdraw(&mut self, client: ClientId, amount: f64) {
         let client = self.get_client(client);
+
+        if client.locked {
+            return;
+        }
+
         client.total -= amount;
     }
 
     pub fn deposit(&mut self, client: ClientId, amount: f64) {
         let client = self.get_client(client);
+
+        if client.locked {
+            return;
+        }
+
         client.total += amount;
     }
 
@@ -123,12 +137,27 @@ impl State {
         // TODO: if they want a db, use sqlite here to find the amount in the tx db
     }
     pub fn chargeback(&mut self, client: ClientId, tx: TxId) {
-        let client = self.get_client(client);
+        match self.processed_txns.get(&tx) {
+            Some(tx) => {
+                if tx.client_id() != client {
+                    return;
+                }
+                if !tx.is_disputed() {
+                    // disallow chargebacks on transactions that haven't been disputed
+                    return;
+                }
+                let tx_amount = tx.amount();
+                let tx_is_deposit = tx.is_deposit();
+                let client = self.get_client(client);
+                client.locked = true;
+                if tx_is_deposit {
+                    client.held -= tx_amount;
+                    client.total -= tx_amount;
+                }
+            }
+            None => (),
+        }
         // TODO: if they want a db, use sqlite here to find the amount in the tx db
-        //        client.held -= todo!("Find amount in tx db");
-        //        client.amount -= todo!("Find amount in tx db");
-        client.locked = true;
-        todo!("handle funds");
     }
 
     fn insert_processed_deposit(&mut self, client: ClientId, amount: f64, tx_id: TxId) {
@@ -138,5 +167,34 @@ impl State {
     fn insert_processed_withdrawal(&mut self, client: ClientId, amount: f64, tx_id: TxId) {
         self.processed_txns
             .insert(tx_id, ProcessedTransaction::new_withdrawal(client, amount));
+    }
+
+    pub fn serialize_to_csv(self) -> String {
+        let mut wtr = csv::Writer::from_writer(vec![]);
+        wtr.write_record(&["client", "available", "held", "total", "locked"]);
+        // sort client accounts for testability
+        let mut client_accounts = self
+            .client_accounts
+            .into_iter()
+            .collect::<Vec<(ClientId, ClientAccount)>>();
+        client_accounts.sort_by_key(|(id, _)| *id);
+        for (
+            id,
+            ClientAccount {
+                total,
+                held,
+                locked,
+            },
+        ) in client_accounts
+        {
+            wtr.write_record(&[
+                id.to_string(),
+                (total - held).to_string(),
+                held.to_string(),
+                total.to_string(),
+                locked.to_string(),
+            ]);
+        }
+        String::from_utf8(wtr.into_inner().unwrap()).unwrap()
     }
 }

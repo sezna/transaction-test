@@ -58,4 +58,8 @@ impl ProcessedTransaction {
     pub fn amount(&self) -> f64 {
         self.amount
     }
+
+    pub fn is_disputed(&self) -> bool {
+        self.disputed
+    }
 }

@@ -4,8 +4,6 @@ use serde::{
 };
 use std::fmt;
 
-mod error;
-
 pub type ClientId = u16;
 pub type TxId = u32;
 

@@ -7,23 +7,9 @@ mod transaction;
 pub use transaction::{ClientId, Transaction, TxId};
 
 mod state;
-use state::State;
+pub use state::State;
 
-// TODO: command line interface for input file
-// docstrings
-// tests
-// replace unwrap w/ proper handling
-// db state
-// make processedtxn type so that the type system represents that properly
-/// The [TransactionProcessor] handles one incoming transaction at a time. It processes the
-/// transaction and applies it to the current state.
-/// It also writes the transaction to a database ledger.
-struct TransactionProcessor;
-
-/// The [DataStream] holds a streaming reader that reads the input CSV.
-struct DataStream;
-
-fn main() {
+pub fn main() {
     let file = File::open("data/transactions.csv").unwrap();
     let reader = BufReader::new(file);
 
