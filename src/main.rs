@@ -7,12 +7,14 @@ mod transaction;
 pub use transaction::{ClientId, Transaction, TxId};
 
 mod state;
+use state::State;
 
 // TODO: command line interface for input file
 // docstrings
 // tests
 // replace unwrap w/ proper handling
 // db state
+// make processedtxn type so that the type system represents that properly
 /// The [TransactionProcessor] handles one incoming transaction at a time. It processes the
 /// transaction and applies it to the current state.
 /// It also writes the transaction to a database ledger.
@@ -27,6 +29,9 @@ fn main() {
 
     let mut rdr = ReaderBuilder::new().flexible(true).from_reader(reader);
     let mut deserialized_stream = rdr.deserialize::<Transaction>();
+
+    let mut state: State = Default::default();
+
     while let Some(record) = deserialized_stream.next() {
         // You could make this return a result, but I believe `Result` should represent an internal
         // error in the execution of the program that must be handled. Because transactions are user
@@ -38,7 +43,7 @@ fn main() {
             // continuing here because invalid transactions should be ignored as stated above
             Err(_) => continue,
         };
-
-        println!("{:?}", record);
+        state.transact(record);
     }
+    dbg!(&state);
 }

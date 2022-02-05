@@ -31,7 +31,7 @@ pub type TxId = u32;
 // The downside is that now I have to manually implement deserialize, because this is too
 // complicated to do with the macro automatically. But, that's a one time cost and not too hard.
 // The benefits will be present throughout the system.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[cfg_attr(test, derive(PartialEq))]
 pub enum Transaction {
     Deposit {
