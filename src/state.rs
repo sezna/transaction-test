@@ -153,6 +153,8 @@ impl State {
                 if tx_is_deposit {
                     client.held -= tx_amount;
                     client.total -= tx_amount;
+                } else {
+                    client.total += tx_amount;
                 }
             }
             None => (),

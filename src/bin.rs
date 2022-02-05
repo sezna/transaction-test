@@ -1,7 +1,7 @@
 //#![deny(missing_docs)]
 use csv::ReaderBuilder;
 use serde::{de::Deserializer, Deserialize, Serialize};
-use std::{fs::File, io::BufReader};
+use std::{env, fs::File, io::BufReader};
 
 mod transaction;
 pub use transaction::{ClientId, Transaction, TxId};
@@ -9,7 +9,17 @@ pub use transaction::{ClientId, Transaction, TxId};
 mod state;
 pub use state::State;
 
-pub fn main() {
+pub fn main() -> Result<(), String> {
+    let args: Vec<String> = env::args().collect();
+
+    let filename = match args.get(1) {
+        Some(name) => name,
+        None => {
+            return Err(
+                "Input file name must be provided as the first argument to this program.".into(),
+            )
+        }
+    };
     let file = File::open("data/transactions.csv").unwrap();
     let reader = BufReader::new(file);
 
@@ -31,5 +41,6 @@ pub fn main() {
         };
         state.transact(record);
     }
-    dbg!(&state);
+    println!("{}", state.serialize_to_csv());
+    Ok(())
 }

@@ -16,3 +16,6 @@ pub use state::State;
 // db state
 // make processedtxn type so that the type system represents that properly
 // clippy
+// list assumptions made
+// add to funds when withdrawal is charged back
+//
