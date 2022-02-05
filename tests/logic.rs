@@ -1,5 +1,6 @@
 use transactions::{State, Transaction};
 
+/// Given an input list of transactions, run it through the state machine and assess the output.
 fn harness(input: &str, expected_output: &str) -> bool {
     let mut reader = csv::ReaderBuilder::new()
         .flexible(true)
@@ -14,7 +15,12 @@ fn harness(input: &str, expected_output: &str) -> bool {
         .into_iter()
         .for_each(|tx| state.transact(tx));
 
-    let output = state.serialize_to_csv();
+    let output = match state.serialize_to_csv() {
+        Ok(o) => o,
+        Err(_) => return false,
+    };
+    println!("EXPECTED\n{}", expected_output);
+    println!("\nRECEIVED\n{}", output);
     output == expected_output
 }
 
@@ -79,6 +85,22 @@ chargeback,2,1"#,
         r#"client,available,held,total,locked
 1,1,0,1,false
 2,1,0,1,false
+"#
+    ));
+}
+
+/// A chargeback'd withdrawal should return money to the client.
+#[test]
+fn chargeback_withdrawal() {
+    assert!(harness(
+        r#"
+type,client,tx,amount
+deposit ,  1,1,1.0
+withdrawal,  1,2,1
+dispute, 1,2
+chargeback,1,2"#,
+        r#"client,available,held,total,locked
+1,1,0,1,true
 "#
     ));
 }

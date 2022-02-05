@@ -1,4 +1,3 @@
-//#![deny(missing_docs)]
 use csv::ReaderBuilder;
 use std::{env, fs::File, io::BufReader};
 

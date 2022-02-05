@@ -124,9 +124,9 @@ impl State {
                 client.held -= tx_amount;
             }
         }
-
-        // TODO: if they want a db, use sqlite here to find the amount in the tx db
     }
+    /// Processes a chargeback request, which takes a disputed transaction and reverts it. In the case
+    /// of a deposit, remove the funds. In the case of a withdrawal, add the funds back.
     pub fn chargeback(&mut self, client: ClientId, tx: TxId) {
         if let Some(tx) = self.processed_txns.get(&tx) {
             if tx.client_id() != client {

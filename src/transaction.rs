@@ -84,13 +84,20 @@ impl<'de> Deserialize<'de> for Transaction {
                     return Ok(Transaction::Unrecognized(s));
                 }
 
-                let client: ClientId = seq
+                let client: String = seq
                     .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(1, &self))?;
-
-                let tx: TxId = seq
+                let client: ClientId = client
+                    .trim()
+                    .parse()
+                    .map_err(|_| de::Error::invalid_value(de::Unexpected::Unit, &self))?;
+                let tx: String = seq
                     .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(2, &self))?;
+                let tx: TxId = tx
+                    .trim()
+                    .parse()
+                    .map_err(|_| de::Error::invalid_value(de::Unexpected::Unit, &self))?;
 
                 // if this is a Dispute or a Resolve, then there is  no amount
                 use TransactionType::*;
@@ -99,9 +106,13 @@ impl<'de> Deserialize<'de> for Transaction {
                     Resolve => Transaction::Resolve { client, tx },
                     Chargeback => Transaction::Chargeback { client, tx },
                     Deposit => {
-                        let amount = seq
+                        let amount: String = seq
                             .next_element()?
                             .ok_or_else(|| de::Error::invalid_length(3, &self))?;
+                        let amount: f64 = amount
+                            .trim()
+                            .parse()
+                            .map_err(|_| de::Error::invalid_value(de::Unexpected::Unit, &self))?;
                         Transaction::Deposit { client, tx, amount }
                     }
                     Withdrawal => {
