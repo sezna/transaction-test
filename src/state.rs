@@ -28,8 +28,6 @@ pub struct State {
     //
     // In real life this would be a database with an index on the primary key, anyway.
     processed_txns: FnvHashMap<TxId, ProcessedTransaction>,
-    active_disputes: Vec<TxId>,
-    resolved_disputes: Vec<TxId>,
 }
 
 /// Represents the state of a specific account for a given client.
@@ -49,7 +47,6 @@ impl State {
     // infallible.
     // TODO: DB
     pub fn transact(&mut self, transaction: Transaction) {
-        use Transaction::*;
         match transaction {
             Transaction::Deposit { client, tx, amount } => {
                 self.deposit(client, amount);
@@ -62,7 +59,7 @@ impl State {
             Transaction::Dispute { client, tx } => self.dispute(client, tx),
             Transaction::Resolve { client, tx } => self.resolve(client, tx),
             Transaction::Chargeback { client, tx } => self.chargeback(client, tx),
-            Transaction::Unrecognized(_) => return (),
+            Transaction::Unrecognized(_) => (),
         };
     }
 
@@ -88,24 +85,21 @@ impl State {
 
     pub fn dispute(&mut self, client_id: ClientId, tx: TxId) {
         // TODO: if they want a db, use sqlite here to find the amount in the tx db
-        match self.processed_txns.get_mut(&tx) {
-            Some(ref mut processed_txn) => {
-                // if the client ids don't match, the input is malformed.
-                if processed_txn.client_id() != client_id {
-                    return;
-                }
-
-                processed_txn.set_disputed(true);
-
-                // From how I understand the problem, we only want to hold funds if it is
-                // a deposit? pending my email question
-                let tx_amount = processed_txn.amount();
-                if processed_txn.is_deposit() {
-                    let client = self.get_client(client_id);
-                    client.held += tx_amount;
-                }
+        if let Some(ref mut processed_txn) = self.processed_txns.get_mut(&tx) {
+            // if the client ids don't match, the input is malformed.
+            if processed_txn.client_id() != client_id {
+                return;
             }
-            _ => (),
+
+            processed_txn.set_disputed(true);
+
+            // From how I understand the problem, we only want to hold funds if it is
+            // a deposit? pending my email question
+            let tx_amount = processed_txn.amount();
+            if processed_txn.is_deposit() {
+                let client = self.get_client(client_id);
+                client.held += tx_amount;
+            }
         };
     }
 
@@ -116,50 +110,43 @@ impl State {
     }
 
     pub fn resolve(&mut self, client_id: ClientId, tx: TxId) {
-        let mutx = self.processed_txns.get_mut(&tx);
-        match self.processed_txns.get_mut(&tx) {
-            Some(ref mut tx) => {
-                if tx.client_id() != client_id {
-                    return;
-                }
-                tx.set_disputed(false);
-
-                let tx_amount = tx.amount();
-
-                if tx.is_deposit() {
-                    let mut client = self.get_client(client_id);
-                    client.held -= tx_amount;
-                }
+        let _mutx = self.processed_txns.get_mut(&tx);
+        if let Some(ref mut tx) = self.processed_txns.get_mut(&tx) {
+            if tx.client_id() != client_id {
+                return;
             }
-            _ => (),
+            tx.set_disputed(false);
+
+            let tx_amount = tx.amount();
+
+            if tx.is_deposit() {
+                let mut client = self.get_client(client_id);
+                client.held -= tx_amount;
+            }
         }
 
         // TODO: if they want a db, use sqlite here to find the amount in the tx db
     }
     pub fn chargeback(&mut self, client: ClientId, tx: TxId) {
-        match self.processed_txns.get(&tx) {
-            Some(tx) => {
-                if tx.client_id() != client {
-                    return;
-                }
-                if !tx.is_disputed() {
-                    // disallow chargebacks on transactions that haven't been disputed
-                    return;
-                }
-                let tx_amount = tx.amount();
-                let tx_is_deposit = tx.is_deposit();
-                let client = self.get_client(client);
-                client.locked = true;
-                if tx_is_deposit {
-                    client.held -= tx_amount;
-                    client.total -= tx_amount;
-                } else {
-                    client.total += tx_amount;
-                }
+        if let Some(tx) = self.processed_txns.get(&tx) {
+            if tx.client_id() != client {
+                return;
             }
-            None => (),
+            if !tx.is_disputed() {
+                // disallow chargebacks on transactions that haven't been disputed
+                return;
+            }
+            let tx_amount = tx.amount();
+            let tx_is_deposit = tx.is_deposit();
+            let client = self.get_client(client);
+            client.locked = true;
+            if tx_is_deposit {
+                client.held -= tx_amount;
+                client.total -= tx_amount;
+            } else {
+                client.total += tx_amount;
+            }
         }
-        // TODO: if they want a db, use sqlite here to find the amount in the tx db
     }
 
     fn insert_processed_deposit(&mut self, client: ClientId, amount: f64, tx_id: TxId) {
@@ -171,9 +158,9 @@ impl State {
             .insert(tx_id, ProcessedTransaction::new_withdrawal(client, amount));
     }
 
-    pub fn serialize_to_csv(self) -> String {
+    pub fn serialize_to_csv(self) -> Result<String, csv::Error> {
         let mut wtr = csv::Writer::from_writer(vec![]);
-        wtr.write_record(&["client", "available", "held", "total", "locked"]);
+        wtr.write_record(&["client", "available", "held", "total", "locked"])?;
         // sort client accounts for testability
         let mut client_accounts = self
             .client_accounts
@@ -195,8 +182,8 @@ impl State {
                 held.to_string(),
                 total.to_string(),
                 locked.to_string(),
-            ]);
+            ])?;
         }
-        String::from_utf8(wtr.into_inner().unwrap()).unwrap()
+        Ok(String::from_utf8(wtr.into_inner().unwrap()).unwrap())
     }
 }

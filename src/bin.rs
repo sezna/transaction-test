@@ -1,6 +1,5 @@
 //#![deny(missing_docs)]
 use csv::ReaderBuilder;
-use serde::{de::Deserializer, Deserialize, Serialize};
 use std::{env, fs::File, io::BufReader};
 
 mod transaction;
@@ -9,7 +8,7 @@ pub use transaction::{ClientId, Transaction, TxId};
 mod state;
 pub use state::State;
 
-pub fn main() -> Result<(), String> {
+pub fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
 
     let filename = match args.get(1) {
@@ -20,15 +19,15 @@ pub fn main() -> Result<(), String> {
             )
         }
     };
-    let file = File::open("data/transactions.csv").unwrap();
+    let file = File::open(filename).unwrap();
     let reader = BufReader::new(file);
 
     let mut rdr = ReaderBuilder::new().flexible(true).from_reader(reader);
-    let mut deserialized_stream = rdr.deserialize::<Transaction>();
+    let deserialized_stream = rdr.deserialize::<Transaction>();
 
     let mut state: State = Default::default();
 
-    while let Some(record) = deserialized_stream.next() {
+    for record in deserialized_stream {
         // You could make this return a result, but I believe `Result` should represent an internal
         // error in the execution of the program that must be handled. Because transactions are user
         // data, we don't want to do an excess of work on malformed user data, which is likely to
@@ -41,6 +40,6 @@ pub fn main() -> Result<(), String> {
         };
         state.transact(record);
     }
-    println!("{}", state.serialize_to_csv());
+    println!("{}", state.serialize_to_csv()?);
     Ok(())
 }

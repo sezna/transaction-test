@@ -7,7 +7,7 @@ fn harness(input: &str, expected_output: &str) -> bool {
 
     let mut state: State = Default::default();
 
-    let records = reader
+    let _records = reader
         .deserialize()
         .collect::<Result<Vec<Transaction>, _>>()
         .unwrap()

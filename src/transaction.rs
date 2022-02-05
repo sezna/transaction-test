@@ -1,5 +1,5 @@
 use serde::{
-    de::{self, Deserializer, MapAccess, SeqAccess, Visitor},
+    de::{self, Deserializer, SeqAccess, Visitor},
     Deserialize,
 };
 use std::fmt;
