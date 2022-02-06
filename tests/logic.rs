@@ -95,7 +95,7 @@ fn chargeback_withdrawal() {
     assert!(harness(
         r#"
 type,client,tx,amount
-deposit ,  1,1,1.0
+deposit ,  1,1,  1.0
 withdrawal,  1,2,1
 dispute, 1,2
 chargeback,1,2"#,

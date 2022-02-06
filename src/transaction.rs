@@ -142,7 +142,7 @@ enum TransactionType {
 impl TransactionType {
     fn from_str(raw: &str) -> Self {
         use TransactionType::*;
-        match raw {
+        match raw.trim() {
             "deposit" => Deposit,
             "withdrawal" => Withdrawal,
             "dispute" => Dispute,
