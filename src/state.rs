@@ -110,7 +110,6 @@ impl State {
     }
 
     pub fn resolve(&mut self, client_id: ClientId, tx: TxId) {
-        let _mutx = self.processed_txns.get_mut(&tx);
         if let Some(ref mut tx) = self.processed_txns.get_mut(&tx) {
             if tx.client_id() != client_id {
                 return;
