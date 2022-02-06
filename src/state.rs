@@ -45,7 +45,6 @@ impl State {
     /// Given a transaction, effect it upon the state. Write it to the database when done.
     // As there is no desire to report invalid transactions back to the user, this function is
     // infallible.
-    // TODO: DB
     pub fn transact(&mut self, transaction: Transaction) {
         match transaction {
             Transaction::Deposit { client, tx, amount } => {
@@ -84,7 +83,6 @@ impl State {
     }
 
     pub fn dispute(&mut self, client_id: ClientId, tx: TxId) {
-        // TODO: if they want a db, use sqlite here to find the amount in the tx db
         if let Some(ref mut processed_txn) = self.processed_txns.get_mut(&tx) {
             // if the client ids don't match, the input is malformed.
             if processed_txn.client_id() != client_id {
