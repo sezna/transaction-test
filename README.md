@@ -17,3 +17,5 @@ For performance, a streaming CSV buffered reader is used. Since the performance 
 In general, any violation of the transaction format, be it valid or invalid, results in the transaction being omitted.
 
 I did not track available funds in the client account since it could be derived from the other two fields and would therefore be a duplicate source of truth. With floating point math, that can be very problematic.
+
+There are a few unit tests in the application code itself, then some edge case e2e testing and bulk-test-case-generator code in the `tests` directory.
